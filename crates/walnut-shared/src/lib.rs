@@ -53,6 +53,12 @@ pub static ETHEREUM_MAINNET_RPC_URL: LazyLock<String> =
     LazyLock::new(|| required_env("ETHEREUM_MAINNET_RPC_URL"));
 pub static ETHEREUM_SEPOLIA_RPC_URL: LazyLock<String> =
     LazyLock::new(|| required_env("ETHEREUM_SEPOLIA_RPC_URL"));
+// Bucket holding the verified class payloads (`class-<class_hash>.json`).
+// Required rather than defaulted on purpose: pointing at the wrong bucket does
+// not fail, it silently degrades every class to unverified, which costs far
+// more to diagnose than a missing variable at startup.
+pub static CLASSES_S3_BUCKET_NAME: LazyLock<String> =
+    LazyLock::new(|| required_env("CLASSES_S3_BUCKET_NAME"));
 
 fn required_env(name: &str) -> String {
     let value = std::env::var(name)
@@ -70,6 +76,7 @@ pub fn check_required_env() {
     LazyLock::force(&STARKNET_SEPOLIA_RPC_URL);
     LazyLock::force(&ETHEREUM_MAINNET_RPC_URL);
     LazyLock::force(&ETHEREUM_SEPOLIA_RPC_URL);
+    LazyLock::force(&CLASSES_S3_BUCKET_NAME);
 }
 
 #[derive(Debug, Clone, PartialEq)]

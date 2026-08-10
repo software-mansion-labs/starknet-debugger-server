@@ -32,14 +32,15 @@ services:
       - AWS_SECRET_ACCESS_KEY=
       - S3_ENDPOINT=
       - S3_REGION=
+      - CLASSES_S3_BUCKET_NAME=walnutserver-east-1-classes-verification
       - BINARIES_S3_BUCKET_NAME=
       - BINARIES_SAVE_DIRECTORY_PATH=/opt/app/binaries
       - SCARB_GITHUB_REPO_NAME=software-mansion/scarb
       - SCARB_LATEST_VERSION_FILE_NAME=/opt/app/binaries/scarb_latest_version.txt
-      - SCARB_RUN_SCHEDULER_MINUTES_INTERVAL=60
+      - SCARB_RUN_SCHEDULER_INTERVAL_MINUTES=60
       - DOJO_GITHUB_REPO_NAME=dojoengine/dojo
       - DOJO_LATEST_VERSION_FILE_NAME=/opt/app/binaries/sozo_latest_version.txt
-      - DOJO_RUN_SCHEDULER_MINUTES_INTERVAL=60
+      - DOJO_RUN_SCHEDULER_INTERVAL_MINUTES=60
       - LOG_LEVEL=INFO
       - BUILD_CPU_LIMIT=300
     volumes:
