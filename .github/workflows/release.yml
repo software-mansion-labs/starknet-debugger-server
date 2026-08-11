@@ -1,0 +1,91 @@
+name: Release
+
+# Builds the image and pushes it to Artifact Registry. It does NOT deploy.
+#
+# Deploying is a deliberate, separate step performed from walnut-infra.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # required to mint the Workload Identity token
+
+env:
+  REGION: us-central1
+  IMAGE: us-central1-docker.pkg.dev/software-mansion-dev/walnut/starknet-debugger-server
+
+jobs:
+  release:
+    name: build and push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # No service account key: the provider is locked to this repository in
+      # walnut-infra/iam.tf. Both variables come from `terraform output`.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Tag pushes are named after the release tag. A manual run is named after
+      # the commit - a branch name is not a valid Docker tag, and it would be
+      # reused by the next build off the same branch. Only a release moves
+      # `latest`.
+      - name: Resolve image tags
+        id: tags
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="$GITHUB_SHA"
+          fi
+          {
+            echo "image=${IMAGE}:${tag}"
+            echo "list<<EOF"
+            echo "${IMAGE}:${tag}"
+            if [ "$GITHUB_REF_TYPE" = tag ]; then
+              echo "${IMAGE}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # SQLX_OFFLINE=true is set in the Dockerfile, so the compile-time-checked
+      # queries build against the committed .sqlx directory. If a PR touched SQL
+      # without running `cargo sqlx prepare`, this is where it fails.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: false
+          tags: ${{ steps.tags.outputs.list }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Pushed image
+        env:
+          PUSHED_IMAGE: ${{ steps.tags.outputs.image }}
+        run: |
+          {
+            echo "### Image pushed"
+            echo
+            echo '```'
+            echo "${PUSHED_IMAGE}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
