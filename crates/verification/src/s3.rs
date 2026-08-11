@@ -9,6 +9,16 @@ use sqlx::{Pool, Postgres};
 use std::collections::{HashMap, HashSet};
 use tracing::error;
 
+/// Bucket holding the verified class payloads (`class-<class_hash>.json`), as a
+/// `&str` for the S3 builder calls.
+///
+/// `CLASSES_S3_BUCKET_NAME` is required; `check_required_env` forces it at
+/// startup so a missing value stops the process rather than panicking on the
+/// first class fetch.
+pub fn classes_bucket_name() -> &'static str {
+    walnut_shared::CLASSES_S3_BUCKET_NAME.as_str()
+}
+
 pub fn key_for_class_hash(class_hash: &str) -> String {
     format!("class-{}.json", class_hash)
 }
@@ -21,7 +31,7 @@ pub async fn fetch_verified_class_hash_with_contract_class_data(
     let verified_class = fetch_verified_class_with_inlining_class(db_pool, class_hash).await?;
 
     let primary_class_hash = &verified_class.0;
-    let bucket_name = "walnutserver-east-1-classes-verification";
+    let bucket_name = classes_bucket_name();
 
     // First try to fetch class data with inline_class_hash, if we have it
     if let Some(inline_class_hash) = &verified_class.1 {
@@ -52,7 +62,7 @@ pub async fn fetch_verified_class_hash_with_source_code_data(
     let verified_class = fetch_verified_class_with_inlining_class(db_pool, class_hash).await?;
 
     let primary_class_hash = &verified_class.0;
-    let bucket_name = "walnutserver-east-1-classes-verification";
+    let bucket_name = classes_bucket_name();
 
     // First try to fetch class data with inline_class_hash, if we have it
     if let Some(inline_class_hash) = &verified_class.1 {
@@ -81,7 +91,7 @@ pub async fn fetch_verified_class_with_data(
 
     let resp = s3_client
         .get_object()
-        .bucket("walnutserver-east-1-classes-verification")
+        .bucket(classes_bucket_name())
         .key(key_for_class_hash(class_hash))
         .send()
         .await?;
@@ -131,7 +141,7 @@ pub async fn fetch_class_source_code(
 ) -> Result<HashMap<String, String>> {
     let verified_class_data = match fetch_and_parse_file(
         s3_client,
-        "walnutserver-east-1-classes-verification",
+        classes_bucket_name(),
         key_for_class_hash(class_hash),
     )
     .await
@@ -166,7 +176,7 @@ pub async fn upload_class_to_s3(
     let json_data = serde_json::to_string(&verified_class_data)?;
     s3_client
         .put_object()
-        .bucket("walnutserver-east-1-classes-verification")
+        .bucket(classes_bucket_name())
         .key(format!("class-{}.json", class_hash))
         .body(ByteStream::new(SdkBody::from(json_data)))
         .send()

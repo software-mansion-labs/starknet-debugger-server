@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 use tracing::{debug, error, info, warn};
 use verification::{
     db::fetch_verified_classes_with_inlining_classes,
-    s3::key_for_class_hash,
+    s3::{classes_bucket_name, key_for_class_hash},
     scarb::{default_build_timeout, is_build_timeout_error},
     voyager::{
         cleanup_tmp_dir, compile_voyager_phase1, compile_voyager_phase2, compile_voyager_source,
@@ -68,12 +68,8 @@ pub async fn fetch_classes_data(
     let fetches = verified_classes.keys().map(|key| {
         let key = key.clone();
         async move {
-            match fetch_and_parse_file(
-                s3_client,
-                "walnutserver-east-1-classes-verification",
-                key_for_class_hash(&key),
-            )
-            .await
+            match fetch_and_parse_file(s3_client, classes_bucket_name(), key_for_class_hash(&key))
+                .await
             {
                 Ok(parsed) => (key, Some(parsed)),
                 Err(err) => {
@@ -139,14 +135,12 @@ pub async fn fetch_classes_debugger_data_with_external(
             let fetch = match value {
                 Some(value) => fetch_and_parse_file(
                     s3_client,
-                    "walnutserver-east-1-classes-verification",
+                    classes_bucket_name(),
                     key_for_class_hash(value),
                 ),
-                None => fetch_and_parse_file(
-                    s3_client,
-                    "walnutserver-east-1-classes-verification",
-                    key_for_class_hash(key),
-                ),
+                None => {
+                    fetch_and_parse_file(s3_client, classes_bucket_name(), key_for_class_hash(key))
+                }
             };
             let key = key.clone();
             fetch.map(|res| match res {
